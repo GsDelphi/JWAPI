@@ -29,11 +29,9 @@ unit JwaWinSta;
 interface
 
 uses
-  SysUtils, DateUtils,
-  JwaWinType, JwaWinBase, JwaWinDllNames;
+  SysUtils, Windows, DateUtils;
 
 {$ENDIF JWA_OMIT_SECTIONS}
-{$I jediapilib.inc}
 
 {$IFNDEF JWA_IMPLEMENTATIONSECTION}
 
@@ -44,33 +42,16 @@ type
   {$ENDIF JWA_INCLUDEMODE}
 
   _WINSTATIONQUERYINFORMATIONW = record
-    State: DWORD;
-    WinStationName: array[0..10] of WideChar;
-    Unknown1: array[0..10] of byte;
-    Unknown3: array[0..10] of WideChar;
-    Unknown2: array[0..8] of byte;
-    SessionId: DWORD;
-    Reserved2: array[0..3] of byte;
+    Reserved1: array [0..71] of Byte;
+    SessionId: Longint;
+    Reserved2: array [0..3] of Byte;
     ConnectTime: FILETIME;
     DisconnectTime: FILETIME;
     LastInputTime: FILETIME;
-    LogonTime: FILETIME;
-    Unknown4: array[0..11] of byte;
-    OutgoingFrames: DWORD;
-    OutgoingBytes: DWORD;
-    OutgoingCompressBytes: DWORD;
-    Unknown5: array[0..435] of byte;
-    IncomingCompressedBytes: DWORD;
-    Unknown6: array[0..7] of byte;
-    IncomingFrames: DWORD;
-    IncomingBytes: DWORD;
-    Unknown7: array[0..3] of byte;
-    Reserved3: array[0..528] of byte;
-    Domain: array[0..17] of WideChar;
-    Username: array[0..22] of WideChar;
+    LoginTime: FILETIME;
+    Reserved3: array [0..1095] of Byte;
     CurrentTime: FILETIME;
   end;
-
 
 {***********************************************************}
 { WinStationShadow: Shadow another user's session           }
@@ -92,10 +73,10 @@ type
 {             for the default (CTRL)                        }
 {                                                           }
 { v0.2:                                                     }
-{ Changed param2 Unknown: DWORD to pServerName: PWideChar   }
+{ Changed param2 Unknown: ULONG to pServerName: PWideChar   }
 {***********************************************************}
-function WinStationShadow(hServer: Handle; pServerName: PWideChar; SessionID: DWORD; HotKey: DWORD;
-  HKModifier: DWORD): Boolean; stdcall;
+function WinStationShadow(hServer: Handle; pServerName: PWideChar; SessionID: ULONG; HotKey: ULONG;
+  HKModifier: ULONG): Boolean; stdcall;
 
 {***********************************************************}
 { WinStationShadowStop: Not needed, is called for you when  }
@@ -105,7 +86,7 @@ function WinStationShadow(hServer: Handle; pServerName: PWideChar; SessionID: DW
 {                (note: possibly pServerName: PWideChar;    }
 { Not tested!                                               }
 {***********************************************************}
-function WinStationShadowStop(hServer: Handle; SessionID: DWORD; Unknown: Integer): Boolean; stdcall;
+function WinStationShadowStop(hServer: Handle; SessionID: ULONG; Unknown: Integer): Boolean; stdcall;
 
 {***********************************************************}
 { WinStationConnect: Connect to a session                   }
@@ -133,28 +114,15 @@ function WinStationShadowStop(hServer: Handle; SessionID: DWORD; Unknown: Intege
 { changed name ActiveSessionID to TargetSessionID           }
 { Function tested and working on Windows 2003               }
 {***********************************************************}
-function WinStationConnectW(hServer: Handle; SessionID: DWORD; TargetSessionID: DWORD; pPassword: PWideChar;
+function WinStationConnectW(hServer: Handle; SessionID: ULONG; TargetSessionID: ULONG; pPassword: PWideChar;
   bWait: Boolean): Boolean; stdcall;
 
-function WinStationDisconnect(hServer: THandle; SessionId: DWORD;
-  bWait: BOOLEAN): BOOLEAN; stdcall;
-
-function WinStationGetProcessSid(hServer: Handle; dwPID: DWORD;
-  ProcessStartTime: FILETIME; pProcessUserSid: PSID; var dwSidSize: DWORD):
-  BOOLEAN; stdcall;
-
-function WinStationNameFromLogonIdA(hServer: HANDLE; SessionID: ULONG;
-  pWinStationName: PAnsiChar): boolean; stdcall;
-
-function WinStationNameFromLogonIdW(hServer: HANDLE; SessionID: ULONG;
-  pWinStationName: PWideChar): boolean; stdcall;
-
-procedure CachedGetUserFromSid(pSid: PSID; pUserName: PWideChar;
-  var cbUserName: DWORD); stdcall;
-
-function WinStationTerminateProcess(hServer: Handle; dwPID: DWORD; dwExitCode: DWORD): BOOL; stdcall;
+function WinStationTerminateProcess(hServer: Handle; dwPID: DWORD dwExitCode: DWORD): BOOL; stdcall;
 {***********************************************************}
-{ WinStationTerminateProcess: Terminate a process           }
+{ WinStationQueryInformation: Query Terminal Sessions Info  }
+{ When using WTSAPI function, this function is called       }
+{ supply WinStationInformationClass 8 to retrieve Idle Time }
+{ and logon time, see helper function GetWTSIdleTime        }
 {                                                           }
 { hServer: Handle to Terminal Server                        }
 {          Use WTSOpenServer to obtain handle or pass       }
@@ -178,21 +146,12 @@ function WinStationTerminateProcess(hServer: Handle; dwPID: DWORD; dwExitCode: D
 {                                                           }
 { SessionID: The session you want query                     }
 {***********************************************************}
-function WinStationQueryInformationW(hServer: HANDLE; SessionId: DWORD;
+function WinStationQueryInformationW(hServer: HANDLE; SessionId: ULONG;
   WinStationInformationClass: Cardinal; pWinStationInformation: PVOID;
-  WinStationInformationLength: DWORD; var pReturnLength: DWORD):
+  WinStationInformationLength: ULONG; var pReturnLength: ULONG):
   Boolean; stdcall;
 
-function WinStationCallBack(hServer:HANDLE; SessionId: DWORD;
-	pPhoneNumber: PWideChar): boolean; stdcall;
-
-function WinStationShutDownSystem(hSERVER: HANDLE; ShutdownFlags: DWORD): boolean; stdcall;
-
-function WinStationBroadcastSystemMessage(hServer: HANDLE; SendToAllWinstations: BOOL;
-	SessionId: DWORD; TimeOut: DWORD; dwFlags: DWORD; lpdwRecipients: DWORD; uiMessage: ULONG;
-	wParam: WPARAM; lParam: LPARAM; pResponse: LONGINT): LONGINT; stdcall;
-
-function GetWTSLogonIdleTime(hServer: Handle; SessionID: DWORD;
+function GetWTSLogonIdleTime(hServer: Handle; SessionID: ULONG;
   var sLogonTime: string; var sIdleTime: string): Boolean;
 
 function FileTime2DateTime(FileTime: FileTime): TDateTime;
@@ -200,7 +159,7 @@ function FileTime2DateTime(FileTime: FileTime): TDateTime;
 {$IFNDEF JWA_INCLUDEMODE}
 const
   SERVERNAME_CURRENT  = HANDLE(0);
-  LOGONID_CURRENT = DWORD(-1);
+  LOGONID_CURRENT = ULONG(-1);
 {$ENDIF JWA_INCLUDEMODE}
 
 {$ENDIF JWA_IMPLEMENTATIONSECTION}
@@ -211,207 +170,15 @@ implementation
 
 {$IFNDEF JWA_INTERFACESECTION}
 
-{$IFNDEF JWA_INCLUDEMODE}
-const
-  winstaDLL = 'winsta.dll';
-  utilDLL = 'utildll.dll';
-{$ENDIF JWA_INCLUDEMODE}
+function WinStationShadow; external 'winsta.dll' name 'WinStationShadow';
 
-{$IFNDEF DYNAMIC_LINK}
-procedure CachedGetUserFromSid; external utilDLL name 'CachedGetUserFromSid';
-function WinStationBroadcastSystemMessage; external winstaDLL name 'WinStationBroadcastSystemMessage';
-function WinStationCallBack; external winstaDLL name 'WinStationCallBack';
-function WinStationConnectW; external winstaDLL name 'WinStationConnectW';
-function WinStationDisconnect; external winstaDLL name 'WinStationDisconnect';
-function WinStationGetProcessSid; external winstaDLL name 'WinStationGetProcessSid';
-function WinStationNameFromLogonIdA; external winstaDLL name 'WinStationNameFromLogonIdA';
-function WinStationNameFromLogonIdW; external winstaDLL name 'WinStationNameFromLogonIdW';
-function WinStationShadow; external winstaDLL name 'WinStationShadow';
-function WinStationShadowStop; external winstaDLL name 'WinStationShadowStop';
-function WinStationShutDownSystem; external winstaDLL name 'WinStationShutDownSystem';
-function WinStationQueryInformationW; external winstaDLL name 'WinStationQueryInformationW';
-function WinStationTerminateProcess; external winstaDLL name 'WinStationTerminateProcess';
-{$ELSE}
+function WinStationShadowStop; external 'winsta.dll' name 'WinStationShadowStop';
 
-var
-  __CachedGetUserFromSid: Pointer;
+function WinStationConnectW; external 'winsta.dll' name 'WinStationConnectW';
 
-procedure CachedGetUserFromSid;
-begin
-  GetProcedureAddress(__CachedGetUserFromSid, utilDLL, 'CachedGetUserFromSid');
-  asm
-        MOV     ESP, EBP
-        POP     EBP
-        JMP     [__CachedGetUserFromSid]
-  end;
-end;
+function WinStationTerminateProcess; external 'winsta.dll' name 'WinStationTerminateProcess';
 
-var
-  __WinStationBroadcastSystemMessage: Pointer;
-
-function WinStationBroadcastSystemMessage;
-begin
-  GetProcedureAddress(__WinStationBroadcastSystemMessage, winstaDLL, 'WinStationBroadcastSystemMessage');
-  asm
-        MOV     ESP, EBP
-        POP     EBP
-        JMP     [__WinStationBroadcastSystemMessage]
-  end;
-end;
-
-var
-  __WinStationCallBack: Pointer;
-
-function WinStationCallBack;
-begin
-  GetProcedureAddress(__WinStationCallBack, winstaDLL, 'WinStationCallBack');
-  asm
-        MOV     ESP, EBP
-        POP     EBP
-        JMP     [__WinStationCallBack]
-  end;
-end;
-
-
-var
-  __WinStationConnectW: Pointer;
-
-function WinStationConnectW;
-begin
-  GetProcedureAddress(__WinStationConnectW, winstaDLL, 'WinStationConnectW');
-  asm
-        MOV     ESP, EBP
-        POP     EBP
-        JMP     [__WinStationConnectW]
-  end;
-end;
-
-
-var
-  __WinStationDisconnect: Pointer;
-
-function WinStationDisconnect;
-begin
-  GetProcedureAddress(__WinStationDisconnect, winstaDLL, 'WinStationDisconnect');
-  asm
-        MOV     ESP, EBP
-        POP     EBP
-        JMP     [__WinStationDisconnect]
-  end;
-end;
-
-var
-  __WinStationGetProcessSid: Pointer;
-
-function WinStationGetProcessSid;
-begin
-  GetProcedureAddress(__WinStationGetProcessSid, winstaDLL, 'WinStationGetProcessSid');
-  asm
-        MOV     ESP, EBP
-        POP     EBP
-        JMP     [__WinStationGetProcessSid]
-  end;
-end;
-
-
-var
-  __WinStationNameFromLogonIdA: Pointer;
-
-function WinStationNameFromLogonIdA;
-begin
-  GetProcedureAddress(__WinStationNameFromLogonIdA, winstaDLL, 'WinStationNameFromLogonIdA');
-  asm
-        MOV     ESP, EBP
-        POP     EBP
-        JMP     [__WinStationNameFromLogonIdA]
-  end;
-end;
-
-
-var
-  __WinStationNameFromLogonIdW: Pointer;
-
-function WinStationNameFromLogonIdW;
-begin
-  GetProcedureAddress(__WinStationNameFromLogonIdW, winstaDLL, 'WinStationNameFromLogonIdW');
-  asm
-        MOV     ESP, EBP
-        POP     EBP
-        JMP     [__WinStationNameFromLogonIdW]
-  end;
-end;
-
-
-var
-  __WinStationQueryInformationW: Pointer;
-
-function WinStationQueryInformationW;
-begin
-  GetProcedureAddress(__WinStationQueryInformationW, winstaDLL, 'WinStationQueryInformationW');
-  asm
-        MOV     ESP, EBP
-        POP     EBP
-        JMP     [__WinStationQueryInformationW]
-  end;
-end;
-
-
-var
-  __WinStationShadow: Pointer;
-
-function WinStationShadow;
-begin
-  GetProcedureAddress(__WinStationShadow, winstaDLL, 'WinStationShadow');
-  asm
-        MOV     ESP, EBP
-        POP     EBP
-        JMP     [__WinStationShadow]
-  end;
-end;
-
-
-var
-  __WinStationShadowStop : Pointer;
-
-function WinStationShadowStop;
-begin
-  GetProcedureAddress(__WinStationShadowStop, winstaDLL, 'WinStationShadowStop');
-  asm
-        MOV     ESP, EBP
-        POP     EBP
-        JMP     [__WinStationShadowStop]
-  end;
-end;
-
-
-var
-  __WinStationShutDownSystem : Pointer;
-
-function WinStationShutDownSystem;
-begin
-  GetProcedureAddress(__WinStationShutDownSystem, winstaDLL, 'WinStationShutDownSystem');
-  asm
-        MOV     ESP, EBP
-        POP     EBP
-        JMP     [__WinStationShutDownSystem]
-  end;
-end;
-
-var
-  __WinStationTerminateProcess: Pointer;
-
-function WinStationTerminateProcess;
-begin
-  GetProcedureAddress(__WinStationTerminateProcess, winstaDLL, 'WinStationTerminateProcess');
-  asm
-        MOV     ESP, EBP
-        POP     EBP
-        JMP     [__WinStationTerminateProcess]
-  end;
-end;
-
-
-{$ENDIF DYNAMIC_LINK}
+function WinStationQueryInformationW; external 'winsta.dll' name 'WinStationQueryInformationW';
 
 function FileTime2DateTime(FileTime: FileTime): TDateTime;
 var
@@ -423,10 +190,10 @@ begin
   Result := SystemTimeToDateTime(SystemTime);
 end;
 
-function GetWTSLogonIdleTime(hServer: HANDLE; SessionID: DWORD;
+function GetWTSLogonIdleTime(hServer: HANDLE; SessionID: ULONG;
   var sLogonTime: string; var sIdleTime: string): Boolean;
 var
-  uReturnLength: DWORD;
+  uReturnLength: ULONG;
   Info: _WINSTATIONQUERYINFORMATIONW;
   CurrentTime: TDateTime;
   LastInputTime: TDateTime;
@@ -445,7 +212,7 @@ begin
     Result := WinStationQueryInformationW(hServer, SessionID, 8, @Info, SizeOf(Info), uReturnLength);
     if Result then
     begin
-      LogonTime := FileTime2DateTime(Info.LogonTime);
+      LogonTime := FileTime2DateTime(Info.LoginTime);
       if YearOf(LogonTime) = 1601 then
         sLogonTime := ''
       else
